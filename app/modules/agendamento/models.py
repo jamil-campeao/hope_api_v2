@@ -1,12 +1,8 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, MetaData
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, DateTime, MetaData, ForeignKey
+from app.core.database import Base
 
-# Metadado com o schema definido para separação lógica de domínios
-metadata = MetaData(schema="agendamento")
 
-# Base declarativa específica para este schema
-Base = declarative_base(metadata=metadata)
 
 class Reserva(Base):
     __tablename__ = "reservas"
@@ -19,6 +15,9 @@ class Reserva(Base):
     data_inicio = Column(DateTime(timezone=True), nullable=False, index=True)
     data_fim = Column(DateTime(timezone=True), nullable=False)
     status = Column(String, default="pendente") # pendente, confirmado, cancelado
+    usuario_criacao = Column(Integer, ForeignKey("usuario.usuarios.id"), nullable=False)
+    usuario_ultima_atualizacao = Column(Integer, ForeignKey("usuario.usuarios.id"), nullable=True)
+    usuario_exclusao = Column(Integer, ForeignKey("usuario.usuarios.id"), nullable=True)
     criado_em = Column(DateTime(timezone=True), default=datetime.utcnow)
     atualizado_em = Column(DateTime(timezone=True), onupdate=datetime.utcnow)
     empresa_id = Column(Integer, nullable=False, index=True)

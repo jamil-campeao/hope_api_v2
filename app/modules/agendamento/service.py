@@ -15,7 +15,7 @@ async def verificar_conflito_horario(
     db: AsyncSession, data_inicio: datetime, data_fim: datetime, exclude_id: int | None = None
 ) -> bool:
     """Verifica se existe conflito de horário para novas reservas."""
-    
+
     conditions = [
         Reserva.status != "cancelado",
         or_(
@@ -27,19 +27,19 @@ async def verificar_conflito_horario(
             and_(Reserva.data_inicio >= data_inicio, Reserva.data_fim <= data_fim),
         )
     ]
-    
+
     if exclude_id is not None:
         conditions.append(Reserva.id != exclude_id)
-        
+
     query = select(Reserva).where(and_(*conditions))
-    
+
     result = await db.execute(query)
     conflito = result.scalars().first()
     return conflito is not None
 
 async def reserva_validacoes(
-    db: AsyncSession, 
-    id: int | None = None, 
+    db: AsyncSession,
+    id: int | None = None,
     reserva_in: ReservaCreate | ReservaUpdate | None = None
 ) -> Reserva | None:
     reserva = None
@@ -64,7 +64,7 @@ async def reserva_validacoes(
         tem_conflito = await verificar_conflito_horario(
             db, reserva_in.data_inicio, reserva_in.data_fim, exclude_id=id
         )
-        
+
         if tem_conflito:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -82,16 +82,16 @@ async def notificar_n8n(reserva: Reserva) -> None:
     webhook_url = settings.N8N_WEBHOOK_URL
     if not webhook_url:
         return
-    
+
     payload = {
         "event": "nova_reserva",
         "data": {
             "reserva_id": reserva.id,
             "cliente_id": reserva.cliente_id,
-            "data_inicio": reserva.data_inicio.isoformat(),
+            "data_inicio": reserva.data_inicio.isoformat() if reserva.data_inicio else None,
         }
     }
-    
+
     try:
         async with httpx.AsyncClient() as client:
             await client.post(webhook_url, json=payload, timeout=5.0)
@@ -100,7 +100,7 @@ async def notificar_n8n(reserva: Reserva) -> None:
         print(f"Erro ao notificar n8n: {e}")
 
 
-async def criar_reserva(db: AsyncSession, reserva_in: ReservaCreate) -> Reserva:
+async def criar_reserva(db: AsyncSession, reserva_in: ReservaCreate, usuario_id: int) -> Reserva:
     """
     Cria uma nova reserva após verificar regras de negócio (conflitos de hora).
     """
@@ -112,16 +112,17 @@ async def criar_reserva(db: AsyncSession, reserva_in: ReservaCreate) -> Reserva:
         servico_id=reserva_in.servico_id,
         data_inicio=reserva_in.data_inicio,
         data_fim=reserva_in.data_fim,
-        status="pendente"
+        status="pendente",
+        usuario_criacao=usuario_id,
     )
-    
+
     db.add(nova_reserva)
     await db.commit()
     await db.refresh(nova_reserva)
-    
+
     # Após o commit com sucesso, aciona integrações assíncronas via Webhook
     await notificar_n8n(nova_reserva)
-    
+
     return nova_reserva
 
 
@@ -135,31 +136,34 @@ async def get_all_reservas(db: AsyncSession) -> ReservaResponseList:
 async def get_reserva_by_id(db: AsyncSession, id: int) -> Reserva:
     result = await db.execute(select(Reserva).where(Reserva.id == id))
     reserva = result.scalars().first()
-    
+
     if not reserva:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Reserva não encontrada."
         )
-    
+
     return reserva
 
-async def cancela_reserva_by_id(db: AsyncSession, id: int) -> Reserva:
+async def cancela_reserva_by_id(db: AsyncSession, id: int, usuario_id: int) -> Reserva:
     reserva = await reserva_validacoes(db=db, id=id)
+    assert reserva is not None
 
     reserva.status = "cancelado"
+    reserva.usuario_exclusao = usuario_id
     await db.commit()
     return reserva
 
-async def atualiza_reserva_by_id(db: AsyncSession, id: int, reserva_in: ReservaUpdate) -> Reserva:
+async def atualiza_reserva_by_id(db: AsyncSession, id: int, reserva_in: ReservaUpdate, usuario_id: int) -> Reserva:
     reserva = await reserva_validacoes(db=db, id=id, reserva_in=reserva_in)
+    assert reserva is not None
 
     reserva.servico_id = reserva_in.servico_id
     reserva.data_inicio = reserva_in.data_inicio
     reserva.data_fim = reserva_in.data_fim
     reserva.status = reserva_in.status
+    reserva.usuario_ultima_atualizacao = usuario_id
 
     await db.commit()
     await db.refresh(reserva)
     return reserva
-    

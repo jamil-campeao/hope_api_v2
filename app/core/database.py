@@ -4,7 +4,13 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import MetaData
 from app.core.config import settings
+
+# Base Declarativa Global para reunir todas as tabelas e schemas do monólito
+metadata = MetaData()
+Base = declarative_base(metadata=metadata)
 
 # Engine assíncrono com QueuePool do SQLAlchemy 2.0
 engine = create_async_engine(
