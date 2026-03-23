@@ -14,10 +14,12 @@ from app.modules.cliente import models as cliente_models
 from app.modules.cliente.router import router as cliente_router
 
 from app.modules.empresa import models as empresa_models
+from app.modules.empresa.router import router as empresa_router
+
 from app.modules.auth.router import router as auth_router
 
 @asynccontextmanager
-async def lifespan(app: FastAPI): # type: ignore
+async def lifespan(app: FastAPI):
     """
     Lifespan da aplicação:
     Cria os schemas e tabelas na inicialização se não existirem (apenas no bootstrap).
@@ -52,6 +54,7 @@ app.include_router(auth_router)
 app.include_router(usuario_router)
 app.include_router(cliente_router)
 app.include_router(agendamento_router)
+app.include_router(empresa_router)
 
 @app.get("/health", tags=["Health"], response_model=Dict[str, str])
 async def health_check() -> Dict[str, str]:

@@ -13,6 +13,7 @@ class Usuario(Base):
     email = Column(String, nullable=False, unique=True)
     senha = Column(String, nullable=False)
     ativo = Column(Boolean, default=True, nullable=False)
+    empresa_id = Column(Integer, ForeignKey("empresa.empresas.id"), nullable=True, index=True)
     data_cadastro = Column(DateTime(timezone=True), default=datetime.utcnow)
     data_atualizacao = Column(DateTime(timezone=True), onupdate=datetime.utcnow)
     data_exclusao = Column(DateTime(timezone=True), nullable=True)
